@@ -16,6 +16,7 @@ namespace LiteMonitor.src.SystemServices
 {
     public class DriverInstaller
     {
+        private static readonly Version RequiredPawnIOVersion = new Version(2, 2, 0, 0);
         private readonly Settings _cfg;
         private readonly Computer _computer;
         private readonly Action _onReloadRequired; // 回调：通知主程序重载
@@ -70,7 +71,7 @@ namespace LiteMonitor.src.SystemServices
                     return await _activeDownloadTask;
                 }
 
-                bool needPawnIO = _cfg.IsAnyEnabled("CPU") && !IsPawnIOInstalled();
+                var pawnIOCheck = CheckPawnIORequirement();
                 string fpsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "LiteMonitorFPS.exe");
                 bool isFpsEnabled = _cfg.IsAnyEnabled("FPS");
                 bool isFpsValid = IsValidExecutable(fpsPath);
@@ -78,10 +79,10 @@ namespace LiteMonitor.src.SystemServices
                 // 只要 FPS 开启且文件无效，或者被强制检查且文件无效，就需要处理
                 bool needFPS = forceFpsCheck || (isFpsEnabled && !isFpsValid);
 
-                if (needPawnIO || (needFPS && !isFpsValid))
+                if (pawnIOCheck.NeedsInstall || (needFPS && !isFpsValid))
                 {
-                    _activeDownloadTask = needPawnIO 
-                        ? InstallDriverPackage(needFPS) // 重命名为 InstallDriverPackage
+                    _activeDownloadTask = pawnIOCheck.NeedsInstall
+                        ? InstallDriverPackage(needFPS, pawnIOCheck) // 重命名为 InstallDriverPackage
                         : InstallFpsComponent();        // 重命名为 InstallFpsComponent
                     
                     return await _activeDownloadTask;
@@ -143,7 +144,7 @@ namespace LiteMonitor.src.SystemServices
         /// <summary>
         /// 流程 B: 安装完整驱动包 (包含 PawnIO 和可选的 FPS)
         /// </summary>
-        private async Task<bool> InstallDriverPackage(bool needFPS)
+        private async Task<bool> InstallDriverPackage(bool needFPS, PawnIOCheckResult pawnIOCheck)
         {
             string tempZip = Path.Combine(Path.GetTempPath(), $"LiteMonitor_Drivers_{Guid.NewGuid()}.zip");
             string targetDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources");
@@ -153,14 +154,12 @@ namespace LiteMonitor.src.SystemServices
                 // 1. 准备并下载
                 var context = new DownloadContext
                 {
-                    Title = IsChinese ? "检测到电脑缺失CPU依赖驱动" : "PawnIO Driver Missing",
-                    Description = IsChinese
-                        ? "电脑缺失CPU的PawnIO驱动\n软件将无法获取CPU的温度/频率/功耗等数据 \n点击“立即安装”自动获取并安装（约5MB）\n\n安装完成后即可自动恢复CPU监控等功能。"
-                        : "LiteMonitor needs to install the driver to monitor CPU temperature, frequency, and power consumption.\nClick 'Install' to install.",
+                    Title = GetPawnIODialogTitle(pawnIOCheck),
+                    Description = GetPawnIODialogDescription(pawnIOCheck),
                     Urls = _driverPackageUrls,
                     SavePath = tempZip,
                     ActionButtonText = "Install",
-                    VersionLabel = IsChinese ? "请安装PawnIO驱动" : "Install PawnIO Driver"
+                    VersionLabel = GetPawnIOVersionLabel(pawnIOCheck)
                 };
 
                 if (!await ShowDownloadDialog(context)) return false;
@@ -168,11 +167,8 @@ namespace LiteMonitor.src.SystemServices
                 // 2. 解压
                 if (!ExtractZipPackage(tempZip, targetDir)) return false;
 
-                // 3. 安装 PawnIO
-                await ProcessPawnIOInstallation(targetDir);
-
-                // FPS 组件已在解压步骤中处理完成
-                return true;
+                // 3. 安装 PawnIO，FPS 组件已在解压步骤中处理完成
+                return await ProcessPawnIOInstallation(targetDir);
             }
             finally
             {
@@ -229,7 +225,7 @@ namespace LiteMonitor.src.SystemServices
             }
         }
 
-        private async Task ProcessPawnIOInstallation(string searchDir)
+        private async Task<bool> ProcessPawnIOInstallation(string searchDir)
         {
             // 查找安装包
             string[] possibleNames = { "PawnIO_setup.exe", "pawnio.exe", "PawnIO.exe" };
@@ -240,7 +236,7 @@ namespace LiteMonitor.src.SystemServices
                  if(File.Exists(p)) { setupPath = p; break; }
             }
 
-            if (string.IsNullOrEmpty(setupPath)) return;
+            if (string.IsNullOrEmpty(setupPath)) return false;
 
             // 校验
             if (!IsValidExecutable(setupPath))
@@ -248,7 +244,7 @@ namespace LiteMonitor.src.SystemServices
                 ShowMessageBox(IsChinese ? "PawnIO 安装包校验失败(文件损坏)。" : "PawnIO installer verification failed.", 
                                IsChinese ? "校验失败" : "Verification Failed", MessageBoxIcon.Error);
                 try { File.Delete(setupPath); } catch { }
-                return;
+                return false;
             }
 
             // 尝试静默安装
@@ -265,12 +261,13 @@ namespace LiteMonitor.src.SystemServices
                 {
                     await RunPawnIOInstaller(setupPath, silent: false);
                     
-                    if (IsPawnIOInstalled())
+                    if (IsPawnIOReadyAfterInstall())
                     {
                         ShowMessageBox(IsChinese ? "PawnIO 驱动已安装。请重启软件。" : "PawnIO driver installed. Please restart.", 
                                        IsChinese ? "安装成功" : "Success", MessageBoxIcon.Information);
                         try { File.Delete(setupPath); } catch { }
                         _onReloadRequired?.Invoke();
+                        return true;
                     }
                     else
                     {
@@ -278,6 +275,8 @@ namespace LiteMonitor.src.SystemServices
                                        IsChinese ? "未完成" : "Not Completed", MessageBoxIcon.Warning);
                     }
                 }
+
+                return false;
             }
             else
             {
@@ -286,21 +285,108 @@ namespace LiteMonitor.src.SystemServices
                 ShowMessageBox(IsChinese ? "PawnIO 驱动安装成功！\n 稍后软件将自动恢复CPU温度等数据监控" : "PawnIO driver installed!\nCPU temperature monitoring will be restored automatically.", 
                                IsChinese ? "成功" : "Success", MessageBoxIcon.Information);
                 _onReloadRequired?.Invoke();
+                return true;
             }
         }
 
-        private bool IsPawnIOInstalled()
+        private bool IsPawnIORequiredByConfig()
         {
+            return _cfg.IsAnyEnabled("CPU");
+        }
+
+        private PawnIOCheckResult CheckPawnIORequirement()
+        {
+            var info = GetPawnIOInstallationInfo();
+            if (!IsPawnIORequiredByConfig())
+                return new PawnIOCheckResult(PawnIOCheckStatus.NotRequired, info);
+
+            if (!info.Installed)
+                return new PawnIOCheckResult(PawnIOCheckStatus.Missing, info);
+
+            if (info.Version != null && info.Version < RequiredPawnIOVersion)
+                return new PawnIOCheckResult(PawnIOCheckStatus.Outdated, info);
+
+            return new PawnIOCheckResult(PawnIOCheckStatus.Ready, info);
+        }
+
+        private PawnIOInstallationInfo GetPawnIOInstallationInfo()
+        {
+            bool installed = false;
+            string? firstVersionText = null;
+
             try
             {
                 string keyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO";
-                using var k1 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).OpenSubKey(keyPath);
-                if (k1 != null) return true;
-                using var k2 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32).OpenSubKey(keyPath);
-                if (k2 != null) return true;
+                foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+                {
+                    using var key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(keyPath);
+                    if (key == null) continue;
+
+                    installed = true;
+                    string? versionText = key.GetValue("DisplayVersion") as string;
+                    if (string.IsNullOrWhiteSpace(firstVersionText)) firstVersionText = versionText;
+
+                    if (TryParseVersion(versionText, out var version))
+                        return new PawnIOInstallationInfo(true, version, versionText);
+                }
             }
             catch { }
-            return false;
+
+            return new PawnIOInstallationInfo(installed, null, firstVersionText);
+        }
+
+        private bool IsPawnIOReadyAfterInstall()
+        {
+            var info = GetPawnIOInstallationInfo();
+            if (!info.Installed) return false;
+
+            // 版本号缺失时沿用旧逻辑，避免把已安装驱动误判为失败。
+            return info.Version == null || info.Version >= RequiredPawnIOVersion;
+        }
+
+        private bool TryParseVersion(string? versionText, out Version? version)
+        {
+            version = null;
+            if (string.IsNullOrWhiteSpace(versionText)) return false;
+            return Version.TryParse(versionText.Trim(), out version);
+        }
+
+        private string GetPawnIODialogTitle(PawnIOCheckResult check)
+        {
+            if (check.Status == PawnIOCheckStatus.Outdated)
+                return IsChinese ? "检测到 PawnIO 驱动版本较旧" : "PawnIO Driver Update Available";
+
+            return IsChinese ? "检测到电脑缺失CPU依赖驱动" : "PawnIO Driver Missing";
+        }
+
+        private string GetPawnIODialogDescription(PawnIOCheckResult check)
+        {
+            if (check.Status == PawnIOCheckStatus.Outdated)
+            {
+                string currentVersion = GetInstalledPawnIOVersionText(check);
+                return IsChinese
+                    ? $"当前 PawnIO 驱动版本为 {currentVersion}，建议更新到 {RequiredPawnIOVersion}。\n旧版驱动可能导致 CPU 温度/频率/功耗等数据异常。\n点击“立即安装”自动获取并更新（约3MB）。\n\n安装完成后即可自动恢复CPU监控等功能。"
+                    : $"Current PawnIO driver version is {currentVersion}. Please update to {RequiredPawnIOVersion}.\nOlder drivers may cause abnormal CPU temperature, frequency, or power readings.\nClick 'Install' to update.";
+            }
+
+            return IsChinese
+                ? "电脑缺失CPU的PawnIO驱动\n软件将无法获取CPU的温度/频率/功耗等数据 \n点击“立即安装”自动获取并安装（约3MB）\n\n安装完成后即可自动恢复CPU监控等功能。"
+                : "LiteMonitor needs to install the driver to monitor CPU temperature, frequency, and power consumption.\nClick 'Install' to install.";
+        }
+
+        private string GetPawnIOVersionLabel(PawnIOCheckResult check)
+        {
+            if (check.Status == PawnIOCheckStatus.Outdated)
+                return IsChinese ? $"更新 PawnIO 驱动至 {RequiredPawnIOVersion}" : $"Update PawnIO Driver to {RequiredPawnIOVersion}";
+
+            return IsChinese ? "请安装PawnIO驱动" : "Install PawnIO Driver";
+        }
+
+        private string GetInstalledPawnIOVersionText(PawnIOCheckResult check)
+        {
+            if (!string.IsNullOrWhiteSpace(check.Installation.VersionText)) return check.Installation.VersionText!;
+            if (check.Installation.Version != null) return check.Installation.Version.ToString();
+            return IsChinese ? "未知" : "Unknown";
         }
 
         private bool IsValidExecutable(string path)
@@ -343,7 +429,7 @@ namespace LiteMonitor.src.SystemServices
                         await proc.WaitForExitAsync();
                         
                         // 1. 优先判断 ExitCode (仅静默模式下完全可信)
-                        if (silent && proc.ExitCode == 0) return true;
+                        if (silent && proc.ExitCode == 0 && IsPawnIOReadyAfterInstall()) return true;
                     }
                 }
                 catch (Exception ex)
@@ -353,7 +439,7 @@ namespace LiteMonitor.src.SystemServices
 
                 // 2. 等待 2 秒后检查注册表 (解决安装延迟或ExitCode不准的问题)
                 await Task.Delay(2000);
-                if (IsPawnIOInstalled())
+                if (IsPawnIOReadyAfterInstall())
                 {
                     Debug.WriteLine("[安装程序] 通过注册表验证安装成功。");
                     return true;
@@ -369,6 +455,41 @@ namespace LiteMonitor.src.SystemServices
                 }
             }
             return false;
+        }
+
+        private enum PawnIOCheckStatus
+        {
+            NotRequired,
+            Missing,
+            Outdated,
+            Ready
+        }
+
+        private sealed class PawnIOCheckResult
+        {
+            public PawnIOCheckResult(PawnIOCheckStatus status, PawnIOInstallationInfo installation)
+            {
+                Status = status;
+                Installation = installation;
+            }
+
+            public PawnIOCheckStatus Status { get; }
+            public PawnIOInstallationInfo Installation { get; }
+            public bool NeedsInstall => Status == PawnIOCheckStatus.Missing || Status == PawnIOCheckStatus.Outdated;
+        }
+
+        private sealed class PawnIOInstallationInfo
+        {
+            public PawnIOInstallationInfo(bool installed, Version? version, string? versionText)
+            {
+                Installed = installed;
+                Version = version;
+                VersionText = versionText;
+            }
+
+            public bool Installed { get; }
+            public Version? Version { get; }
+            public string? VersionText { get; }
         }
 
         private void ShowMessageBox(string msg, string title, MessageBoxIcon icon)
