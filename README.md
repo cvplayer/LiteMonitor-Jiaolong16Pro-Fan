@@ -3,8 +3,6 @@
 > 机械革命蛟龙 16 Pro（GM5HG7A）专用 · 任务栏实时显示 CPU/GPU 风扇转速
 
 ![效果](https://img.shields.io/badge/平台-Windows%2011-blue)  ![设备](https://img.shields.io/badge/设备-机械革命蛟龙16%20Pro-orange)  ![CPU](https://img.shields.io/badge/CPU-9955HX-red)
-<img width="382" height="35" alt="image" src="https://github.com/user-attachments/assets/cec1a269-c3d6-4749-9681-fae880f48482" />
-
 
 ## 效果
 
@@ -14,6 +12,7 @@ LiteMonitor 任务栏实时显示：
 CPU风扇 2560 RPM  │  GPU风扇 2670 RPM
 
 ```
+<img width="382" height="35" alt="image" src="https://github.com/user-attachments/assets/cec1a269-c3d6-4749-9681-fae880f48482" />
 
 颜色随转速变化：🟢 安静 → 🟡 负载 → 🔴 高转
 <img width="569" height="369" alt="image" src="https://github.com/user-attachments/assets/f9ac3349-5a79-491e-b489-5f07bbc4e10f" />
