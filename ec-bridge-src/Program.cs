@@ -4,7 +4,7 @@ using Microsoft.Win32.SafeHandles;
 const string DEV = @"\\.\ACPIDriver";
 const uint IOCTL = 0x9C40A488;
 
-var cache = new { cpu=0, gpu=0, ok=false };
+var cache = new { cpu_fan=0, gpu_fan=0, cpu_color="0", gpu_color="0", ok=false };
 var lk = new object();
 
 _ = Task.Run(async () => {
@@ -15,7 +15,9 @@ _ = Task.Run(async () => {
                 int c = (Read(h,0x0464)<<8)|Read(h,0x0465);
                 int g = (Read(h,0x046C)<<8)|Read(h,0x046B);
                 if (g < 100) g = 0;
-                lock(lk) cache = new { cpu=c, gpu=g, ok=true };
+                string cc = c>=4500?"2":c>=3000?"1":"0";
+                string gc = g>=4500?"2":g>=3000?"1":"0";
+                lock(lk) cache = new { cpu_fan=c, gpu_fan=g, cpu_color=cc, gpu_color=gc, ok=true };
                 await Task.Delay(1000);
             }
         } catch {
@@ -35,7 +37,7 @@ while (true) {
     c.Response.AddHeader("Access-Control-Allow-Origin","*");
     c.Response.ContentType = "application/json; charset=utf-8";
     if (c.Request.Url!.AbsolutePath is "/fan" or "/") {
-        string json; lock(lk) json = $$"""{"cpu_fan":{{cache.cpu}},"gpu_fan":{{cache.gpu}},"ok":{{(cache.ok?"true":"false")}}}""";
+        string json; lock(lk) json = $$"""{"cpu_fan":{{cache.cpu_fan}},"gpu_fan":{{cache.gpu_fan}},"cpu_color":"{{cache.cpu_color}}","gpu_color":"{{cache.gpu_color}}","ok":{{(cache.ok?"true":"false")}}}""";
         var b = System.Text.Encoding.UTF8.GetBytes(json);
         c.Response.StatusCode = 200;
         await c.Response.OutputStream.WriteAsync(b);

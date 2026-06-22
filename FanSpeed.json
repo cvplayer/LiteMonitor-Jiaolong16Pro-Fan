@@ -4,7 +4,7 @@
     "name": "风扇转速",
     "version": "1.0",
     "author": "LiteMonitor",
-    "description": "从机械革命控制中心获取 CPU/GPU 风扇实时转速 (需运行 mqtt-http-bridge.js)"
+    "description": "直接读 EC，实时显示 CPU/GPU 风扇转速 — 机械革命蛟龙16 Pro"
   },
   "inputs": [],
   "execution": {
@@ -16,33 +16,14 @@
         "url": "http://localhost:18900/fan",
         "extract": {
           "cpu_fan": "cpu_fan",
-          "gpu_fan": "gpu_fan"
+          "gpu_fan": "gpu_fan",
+          "cpu_color": "cpu_color",
+          "gpu_color": "gpu_color"
         }
       }
     ]
   },
-  "process": [
-    {
-      "var": "cpu_color",
-      "source": "cpu_fan",
-      "function": "threshold_switch",
-      "value_map": {
-        "0": "0",
-        "3000": "1",
-        "4500": "2"
-      }
-    },
-    {
-      "var": "gpu_color",
-      "source": "gpu_fan",
-      "function": "threshold_switch",
-      "value_map": {
-        "0": "0",
-        "3000": "1",
-        "4500": "2"
-      }
-    }
-  ],
+  "process": [],
   "outputs": [
     {
       "key": "cpu",
@@ -50,7 +31,7 @@
       "short_label": "CPU",
       "format_val": "{{cpu_fan}}",
       "unit": "RPM",
-      "color": "{{cpu_color}}"
+      "color": "{{cpu_color ?? '0'}}"
     },
     {
       "key": "gpu",
@@ -58,7 +39,7 @@
       "short_label": "GPU",
       "format_val": "{{gpu_fan}}",
       "unit": "RPM",
-      "color": "{{gpu_color}}"
+      "color": "{{gpu_color ?? '0'}}"
     }
   ]
 }
