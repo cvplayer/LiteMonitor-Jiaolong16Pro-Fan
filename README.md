@@ -10,13 +10,17 @@ LiteMonitor 任务栏实时显示：
 
 ```
 CPU风扇 2560 RPM  │  GPU风扇 2670 RPM
+
 ```
+<img width="382" height="35" alt="image" src="https://github.com/user-attachments/assets/cec1a269-c3d6-4749-9681-fae880f48482" />
 
 颜色随转速变化：🟢 安静 → 🟡 负载 → 🔴 高转
+<img width="569" height="369" alt="image" src="https://github.com/user-attachments/assets/f9ac3349-5a79-491e-b489-5f07bbc4e10f" />
+
 
 ## 特点
 
-- **不需要控制中心**（CCU 关了也能用）
+- **不需要控制中心**（机械革命控制台关了也能用）
 - **不需要驱动**（Windows 自带 ACPI 驱动）
 - **不需要管理员权限**
 - **开机自动后台运行**（无窗口）
@@ -25,7 +29,8 @@ CPU风扇 2560 RPM  │  GPU风扇 2670 RPM
 ## 快速开始
 
 1. 下载 `ec-bridge.exe`，双击运行
-2. 浏览器打开 `http://localhost:18900/fan`，看到数字说明成功
+2. 浏览器打开 `http://localhost:18900/fan`，看到数字说明成功 <img width="221" height="110" alt="image" src="https://github.com/user-attachments/assets/a379c40a-d75e-4924-9f7f-72c47a1650e3" />
+
 3. 把 `FanSpeed.json` 复制到 LiteMonitor 的 `resources/plugins/` 目录
 4. LiteMonitor 设置 → 重载插件 → 启用「风扇转速」
 
@@ -65,7 +70,7 @@ FanSpeed.json（LiteMonitor 插件）
 
 ## 适用设备
 
-- ✅ 机械革命蛟龙 16 Pro / Yilong 15（GM5HG7A）
+- ✅ 机械革命蛟龙 16 Pro 
 - ⚠️ 其他同方模具笔记本（需验证 EC 地址）
 
 ## 许可证
