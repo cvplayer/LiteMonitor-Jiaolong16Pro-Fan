@@ -3,6 +3,8 @@
 > 机械革命蛟龙 16 Pro（GM5HG7A）专用 · 任务栏实时显示 CPU/GPU 风扇转速
 
 ![效果](https://img.shields.io/badge/平台-Windows%2011-blue)  ![设备](https://img.shields.io/badge/设备-机械革命蛟龙16%20Pro-orange)  ![CPU](https://img.shields.io/badge/CPU-9955HX-red)
+<img width="382" height="35" alt="image" src="https://github.com/user-attachments/assets/cec1a269-c3d6-4749-9681-fae880f48482" />
+
 
 ## 效果
 
@@ -19,7 +21,7 @@ CPU风扇 2560 RPM  │  GPU风扇 2670 RPM
 
 ## 特点
 
-- **不需要控制中心**（CCU 关了也能用）
+- **不需要控制中心**（机械革命控制台关了也能用）
 - **不需要驱动**（Windows 自带 ACPI 驱动）
 - **不需要管理员权限**
 - **开机自动后台运行**（无窗口）
